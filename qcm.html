@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QCM Optimisation SQL - PostgreSQL</title>
+<style>
+  body {
+    font-family: "Inter", sans-serif;
+    background: #f7f8fa;
+    color: #222;
+    padding: 20px;
+    max-width: 800px;
+    margin: auto;
+  }
+  h1 {
+    text-align: center;
+    color: #0a3d62;
+  }
+  .question-box {
+    background: white;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .question {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+  }
+  .choices button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px;
+    margin: 6px 0;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .choices button:hover { background: #f0f0f0; }
+  .choices button.correct { background: #c8e6c9; border-color: #2e7d32; }
+  .choices button.incorrect { background: #ffcdd2; border-color: #c62828; }
+  .explanation {
+    margin-top: 10px;
+    background: #e3f2fd;
+    padding: 10px;
+    border-left: 4px solid #1976d2;
+    border-radius: 6px;
+  }
+  .next-btn {
+    background: #0a3d62;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    margin-top: 15px;
+    cursor: pointer;
+  }
+  .next-btn:hover { background: #07406b; }
+</style>
+</head>
+<body>
+
+<h1>QCM - Optimisation des Requêtes SQL (PostgreSQL)</h1>
+<div id="quiz"></div>
+
+<script>
+const questions = [
+  {
+    q: "1️⃣ Quelle commande permet d’analyser le plan d’exécution d’une requête dans PostgreSQL ?",
+    choices: ["ANALYZE QUERY", "EXPLAIN ANALYZE", "SHOW EXECUTION PLAN", "DESCRIBE ANALYZE"],
+    correct: 1,
+    exp: "✅ La commande EXPLAIN ANALYZE exécute la requête et affiche le plan d’exécution réel avec les temps mesurés."
+  },
+  {
+    q: "2️⃣ Que signifie 'Seq Scan' dans un plan d’exécution ?",
+    choices: [
+      "PostgreSQL lit toute la table séquentiellement",
+      "PostgreSQL lit les lignes dans l’ordre d’un index",
+      "PostgreSQL trie les résultats avant d’afficher",
+      "PostgreSQL lit seulement les lignes filtrées"
+    ],
+    correct: 0,
+    exp: "🔍 'Seq Scan' = lecture séquentielle de toute la table, ligne par ligne, sans utiliser d’index."
+  },
+  {
+    q: "3️⃣ Pourquoi PostgreSQL utilise parfois un 'Parallel Seq Scan' ?",
+    choices: [
+      "Pour corriger une erreur de données",
+      "Pour répartir la lecture de la table entre plusieurs processus",
+      "Parce qu’un index est manquant",
+      "Pour ordonner les résultats plus vite"
+    ],
+    correct: 1,
+    exp: "⚙️ Le 'Parallel Seq Scan' permet à plusieurs workers de lire la table en parallèle pour accélérer les requêtes lourdes."
+  },
+  {
+    q: "4️⃣ Que représente la valeur 'Rows Removed by Filter' dans un EXPLAIN ANALYZE ?",
+    choices: [
+      "Le nombre de lignes insérées",
+      "Le nombre de lignes rejetées par le WHERE",
+      "Le nombre de lignes mises à jour",
+      "Le nombre total de lignes lues"
+    ],
+    correct: 1,
+    exp: "📊 'Rows Removed by Filter' indique combien de lignes ont été lues mais éliminées par la condition WHERE."
+  },
+  {
+    q: "5️⃣ Créer un index sur start_year permet d’optimiser…",
+    choices: [
+      "Les jointures entre tables",
+      "Les requêtes avec un filtre sur start_year",
+      "Les opérations d’insertion",
+      "Les requêtes d’agrégation"
+    ],
+    correct: 1,
+    exp: "📈 Les index améliorent les recherches filtrant sur la colonne indexée, ici start_year."
+  },
+  {
+    q: "6️⃣ Que signifie 'Bitmap Index Scan' ?",
+    choices: [
+      "Lecture directe des lignes dans l’ordre de l’index",
+      "PostgreSQL construit une carte (bitmap) des pages à lire via l’index",
+      "Lecture séquentielle des blocs",
+      "Lecture des lignes dans le cache"
+    ],
+    correct: 1,
+    exp: "🧩 'Bitmap Index Scan' lit les identifiants de lignes via l’index, puis un 'Bitmap Heap Scan' lit les pages correspondantes."
+  },
+  {
+    q: "7️⃣ Pourquoi sélectionner moins de colonnes (au lieu de SELECT *) peut accélérer une requête ?",
+    choices: [
+      "Moins de données à lire et à transférer",
+      "PostgreSQL optimise mieux les jointures",
+      "L’index devient plus grand",
+      "Les filtres WHERE deviennent plus rapides"
+    ],
+    correct: 0,
+    exp: "🚀 Lire moins de colonnes signifie moins d’E/S disque et de transfert mémoire → exécution plus rapide."
+  },
+  {
+    q: "8️⃣ Un index composite sur (start_year, title_type) aide surtout quand…",
+    choices: [
+      "La requête filtre uniquement sur title_type",
+      "La requête filtre sur start_year et title_type",
+      "La requête trie sur une autre colonne",
+      "On fait une jointure sur tconst"
+    ],
+    correct: 1,
+    exp: "🔢 Un index composite est efficace quand les deux colonnes sont utilisées ensemble dans un WHERE ou ORDER BY."
+  },
+  {
+    q: "9️⃣ Dans une jointure entre title_basics et title_ratings, quel algorithme est souvent utilisé pour des tables grandes ?",
+    choices: ["Nested Loop", "Merge Join", "Hash Join", "Bitmap Join"],
+    correct: 2,
+    exp: "💡 Le 'Hash Join' est le plus courant pour les grandes tables non triées, car il construit une table de hachage en mémoire."
+  },
+  {
+    q: "🔟 Pourquoi PostgreSQL abandonne parfois le parallélisme après ajout d’un index efficace ?",
+    choices: [
+      "Parce que l’index rend le plan déjà assez rapide",
+      "Parce que le parallélisme n’est pas compatible avec les index",
+      "Parce que le cache est plein",
+      "Parce que EXPLAIN ANALYZE est désactivé"
+    ],
+    correct: 0,
+    exp: "🧠 Si un index rend le plan très rapide, PostgreSQL estime que le coût du parallélisme ne se justifie plus."
+  },
+  {
+    q: "11️⃣ Quand un index est-il le plus efficace ?",
+    choices: [
+      "Sur les colonnes peu distinctes (faible cardinalité)",
+      "Sur les colonnes très distinctes (forte cardinalité)",
+      "Sur toutes les colonnes",
+      "Uniquement sur les clés étrangères"
+    ],
+    correct: 1,
+    exp: "🎯 Les index sont efficaces quand la colonne contient beaucoup de valeurs différentes (forte sélectivité)."
+  },
+  {
+    q: "12️⃣ Quel type d’index utiliser pour une recherche exacte ?",
+    choices: ["GIN", "BRIN", "B-Tree", "HashMap"],
+    correct: 2,
+    exp: "📘 Le B-Tree est l’index standard pour les recherches exactes (=) et les intervalles (<, >)."
+  },
+  {
+    q: "13️⃣ Quand un index composite est-il particulièrement efficace ?",
+    choices: [
+      "Quand on filtre sur la première colonne seulement",
+      "Quand on filtre sur plusieurs colonnes du même index",
+      "Quand on trie par une autre colonne",
+      "Quand on fait un INSERT"
+    ],
+    correct: 1,
+    exp: "🧮 L’intérêt d’un index composite est de combiner plusieurs colonnes dans un même plan d’accès."
+  },
+  {
+    q: "14️⃣ Que signifie 'Heap Blocks Read' dans EXPLAIN ANALYZE ?",
+    choices: [
+      "Nombre total de lignes insérées",
+      "Nombre de blocs disque lus pour accéder aux lignes",
+      "Nombre d’index utilisés",
+      "Taille du cache PostgreSQL"
+    ],
+    correct: 1,
+    exp: "📦 'Heap Blocks Read' mesure les blocs physiques lus depuis le disque — indicateur du coût I/O."
+  },
+  {
+    q: "15️⃣ Pourquoi un 'covering index' est-il idéal dans certains cas ?",
+    choices: [
+      "Parce qu’il inclut toutes les colonnes nécessaires à la requête",
+      "Parce qu’il augmente la taille de la table",
+      "Parce qu’il accélère uniquement les jointures",
+      "Parce qu’il désactive le cache"
+    ],
+    correct: 0,
+    exp: "🪶 Un 'covering index' contient toutes les colonnes nécessaires — PostgreSQL n’a pas besoin de retourner à la table."
+  }
+];
+
+let current = 0;
+let score = 0;
+
+function showQuestion() {
+  const q = questions[current];
+  const quiz = document.getElementById('quiz');
+  quiz.innerHTML = `
+    <div class="question-box">
+      <div class="question">${q.q}</div>
+      <div class="choices">
+        ${q.choices.map((c, i) => `<button onclick="checkAnswer(${i})">${c}</button>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function checkAnswer(i) {
+  const q = questions[current];
+  const buttons = document.querySelectorAll('.choices button');
+  buttons.forEach((btn, idx) => {
+    btn.disabled = true;
+    if (idx === q.correct) btn.classList.add('correct');
+    if (idx === i && i !== q.correct) btn.classList.add('incorrect');
+  });
+
+  const quiz = document.getElementById('quiz');
+  const isCorrect = i === q.correct;
+  if (isCorrect) score++;
+
+  quiz.innerHTML += `
+    <div class="explanation">
+      ${isCorrect ? "✅ Bonne réponse !" : `❌ Mauvaise réponse.<br><strong>Bonne réponse :</strong> ${q.choices[q.correct]}`}<br>
+      ${q.exp}
+    </div>
+    <button class="next-btn" onclick="nextQuestion()">Suivant</button>
+  `;
+}
+
+function nextQuestion() {
+  current++;
+  if (current < questions.length) {
+    showQuestion();
+  } else {
+    document.getElementById('quiz').innerHTML = `
+      <div class="question-box">
+        <h2>🎉 Quiz terminé !</h2>
+        <p>Score : ${score} / ${questions.length}</p>
+        <button class="next-btn" onclick="restart()">Recommencer</button>
+      </div>
+    `;
+  }
+}
+
+function restart() {
+  current = 0;
+  score = 0;
+  showQuestion();
+}
+
+showQuestion();
+</script>
+
+</body>
+</html>
