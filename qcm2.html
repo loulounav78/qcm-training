@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz PostgreSQL - Optimisation SQL</title>
+<style>
+  body {
+    font-family: "Inter", sans-serif;
+    background: #f4f7fa;
+    color: #222;
+    padding: 20px;
+    max-width: 900px;
+    margin: auto;
+  }
+  h1, h2 { text-align: center; color: #0a3d62; }
+  .menu, .quiz-box {
+    background: white;
+    padding: 20px;
+    margin-top: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    font-size: 1em;
+    border: none;
+    border-radius: 8px;
+    background: #0a3d62;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  button:hover { background: #07406b; }
+  .choices button {
+    background: #fff;
+    border: 1px solid #ccc;
+    color: #222;
+  }
+  .choices button:hover { background: #f0f0f0; }
+  .choices button.correct { background: #c8e6c9; border-color: #2e7d32; }
+  .choices button.incorrect { background: #ffcdd2; border-color: #c62828; }
+  .explanation {
+    margin-top: 10px;
+    background: #e3f2fd;
+    padding: 10px;
+    border-left: 4px solid #1976d2;
+    border-radius: 6px;
+  }
+  #timer {
+    text-align: right;
+    font-weight: bold;
+    color: #c62828;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎓 Quiz PostgreSQL - Optimisation & Analyse</h1>
+<div id="app"></div>
+
+<script>
+/* =============================
+   DONNÉES DES QUIZZ
+============================= */
+
+// --- Quiz 1 : Concepts et plans d'exécution ---
+const quiz1 = [
+  {q:"Quel mot-clé affiche le plan d’exécution d’une requête ?",c:["SHOW PLAN","EXPLAIN","EXPLAIN ANALYZE","DESCRIBE"],a:2,e:"EXPLAIN ANALYZE exécute la requête et affiche le plan réel avec les temps mesurés."},
+  {q:"Qu’est-ce qu’un 'Seq Scan' ?",c:["Lecture séquentielle de la table entière","Recherche via un index","Tri des lignes","Lecture en mémoire"],a:0,e:"PostgreSQL lit toute la table ligne par ligne, sans index."},
+  {q:"Pourquoi PostgreSQL utilise le parallélisme ?",c:["Pour les petites requêtes","Pour répartir le travail entre plusieurs processus","Pour corriger des erreurs","Pour réduire la mémoire"],a:1,e:"Le parallélisme accélère les requêtes volumineuses en divisant le travail."},
+  {q:"Que signifie 'Rows Removed by Filter' ?",c:["Lignes rejetées par WHERE","Lignes triées","Lignes modifiées","Lignes insérées"],a:0,e:"Ce sont les lignes lues mais écartées par le filtre WHERE."},
+  {q:"Que fait EXPLAIN sans ANALYZE ?",c:["Exécute la requête","Affiche seulement le plan estimé","Crée un index","Efface les statistiques"],a:1,e:"EXPLAIN seul n’exécute pas la requête, il montre les estimations."},
+  {q:"Que signifie 'Cost' dans EXPLAIN ?",c:["Le temps en secondes","Une estimation du coût relatif pour le planificateur","Le prix du CPU","Le coût de stockage"],a:1,e:"C’est un coût estimé utilisé pour comparer les plans possibles."},
+  {q:"Quel mot-clé force PostgreSQL à ignorer les index ?",c:["IGNORE INDEX","SET enable_indexscan = off","NO INDEX","EXPLAIN SIMPLE"],a:1,e:"Le paramètre enable_indexscan peut être désactivé temporairement."},
+  {q:"Pourquoi EXPLAIN ANALYZE peut être plus lent ?",c:["Il fait un tri supplémentaire","Il exécute réellement la requête","Il analyse les index","Il met à jour les statistiques"],a:1,e:"EXPLAIN ANALYZE exécute la requête pour mesurer le temps réel."}
+];
+
+// --- Quiz 2 : Connaissances théoriques ---
+const quiz2 = [
+  {q:"Quand un index est-il le plus efficace ?",c:["Sur une colonne peu distincte","Sur une colonne avec beaucoup de valeurs uniques","Sur une clé étrangère uniquement","Sur toutes les colonnes"],a:1,e:"Les index sont utiles sur les colonnes à forte cardinalité."},
+  {q:"Quel type d’index est utilisé par défaut dans PostgreSQL ?",c:["B-Tree","GIN","GiST","Hash"],a:0,e:"B-Tree est l’index par défaut."},
+  {q:"Quel est l’intérêt d’un index composite ?",c:["Accélérer les jointures","Combiner plusieurs colonnes pour les filtres","Optimiser les insertions","Réduire la taille du cache"],a:1,e:"Un index composite aide sur plusieurs colonnes du WHERE."},
+  {q:"Que fait la commande ANALYZE ?",c:["Analyse les index","Met à jour les statistiques du planificateur","Vérifie les contraintes","Trie les tables"],a:1,e:"ANALYZE collecte des statistiques pour le planificateur."},
+  {q:"Pourquoi un 'covering index' est-il performant ?",c:["Il contient toutes les colonnes nécessaires à la requête","Il évite les tri","Il réduit la taille de la table","Il désactive le cache"],a:0,e:"Un covering index permet d’éviter la lecture du heap."},
+  {q:"Que fait VACUUM ?",c:["Trie la table","Supprime les lignes mortes et libère l’espace","Met à jour les index","Supprime les contraintes"],a:1,e:"VACUUM nettoie les tuples obsolètes."},
+  {q:"Que signifie la sélectivité d’un index ?",c:["La proportion de lignes uniques","Le taux d’erreur","Le taux de compression","Le nombre d’index utilisés"],a:0,e:"Plus la sélectivité est haute, plus l’index est utile."},
+  {q:"Quand le parallélisme est-il activé ?",c:["Quand le coût estimé est élevé","Toujours","Jamais pour SELECT","Uniquement pour INSERT"],a:0,e:"PostgreSQL choisit le parallélisme quand le coût justifie plusieurs workers."}
+];
+
+// --- Quiz 3 : Techniques SQL ---
+const quiz3 = [
+  {q:"Quelle requête affiche les titres de 2020 ?",c:["SELECT * FROM title_basics WHERE start_year='2020';","SELECT * FROM title_basics WHERE start_year=2020;","SELECT title FROM title_basics WHERE year=2020;","SELECT ALL FROM title_basics START YEAR 2020;"],a:1,e:"Les années sont des entiers → start_year=2020."},
+  {q:"Quelle requête compte le nombre de films par année ?",c:["SELECT start_year, COUNT(*) FROM title_basics WHERE title_type='movie' GROUP BY start_year;","SELECT COUNT(start_year) FROM title_basics;","SELECT DISTINCT start_year FROM title_basics;","SELECT COUNT(*) FROM title_basics;"],a:0,e:"GROUP BY permet d’agréger par année les films."},
+  {q:"Quelle requête fait une jointure entre title_basics et title_ratings ?",c:["SELECT * FROM title_basics JOIN title_ratings USING (tconst);","SELECT * FROM title_basics, title_ratings;","SELECT * FROM title_basics LEFT tconst title_ratings;","SELECT JOIN title_basics, title_ratings;"],a:0,e:"JOIN ... USING(tconst) relie les deux tables sur tconst."},
+  {q:"Quelle commande crée un index sur start_year ?",c:["CREATE INDEX idx_year ON title_basics (start_year);","ADD INDEX title_basics.start_year;","INDEX start_year ON title_basics;","ALTER TABLE title_basics ADD INDEX start_year;"],a:0,e:"CREATE INDEX est la syntaxe correcte."},
+  {q:"Quelle requête sélectionne les films de 1994 notés plus de 8.5 ?",c:["SELECT b.primary_title, r.average_rating FROM title_basics b JOIN title_ratings r ON b.tconst=r.tconst WHERE b.start_year=1994 AND r.average_rating>8.5;","SELECT * FROM title_basics WHERE start_year=1994 AND average_rating>8.5;","SELECT JOIN title_ratings WHERE start_year=1994;","SELECT primary_title, average_rating FROM title_ratings WHERE average_rating>8.5;"],a:0,e:"Il faut joindre basics et ratings pour filtrer sur les deux tables."},
+  {q:"Comment supprimer un index nommé idx_year ?",c:["DELETE INDEX idx_year;","DROP INDEX idx_year;","REMOVE INDEX idx_year;","ALTER TABLE DROP INDEX idx_year;"],a:1,e:"DROP INDEX est la syntaxe correcte."},
+  {q:"Comment voir les index d’une table ?",c:["\di table","SHOW INDEX table;","SELECT * FROM pg_indexes WHERE tablename='table';","DESCRIBE INDEX table;"],a:2,e:"La vue pg_indexes liste les index existants."},
+  {q:"Quelle requête renvoie le titre et la note d’un film spécifique ?",c:["SELECT b.primary_title, r.average_rating FROM title_basics b JOIN title_ratings r ON b.tconst=r.tconst WHERE b.tconst='tt0111161';","SELECT * FROM title_basics WHERE tconst='tt0111161';","SELECT tconst FROM title_ratings;","SELECT * FROM title_basics LIMIT 1;"],a:0,e:"On joint basics et ratings pour obtenir le titre et sa note."}
+];
+
+/* =============================
+   LOGIQUE DE L'APPLICATION
+============================= */
+let currentQuiz = [];
+let currentIndex = 0;
+let score = 0;
+let timer;
+let timeLeft = 600; // 10 minutes
+
+function showMenu() {
+  document.getElementById('app').innerHTML = `
+    <div class="menu">
+      <h2>Choisissez votre quiz :</h2>
+      <button onclick="startQuiz(1)">Quiz 1 – Concepts et plan d’exécution</button>
+      <button onclick="startQuiz(2)">Quiz 2 – Connaissances théoriques</button>
+      <button onclick="startQuiz(3)">Quiz 3 – Techniques SQL</button>
+      <button onclick="startExam()">🧠 Mode Examen (20 questions aléatoires)</button>
+    </div>
+  `;
+}
+
+function startQuiz(n) {
+  currentQuiz = n===1?quiz1:n===2?quiz2:quiz3;
+  initQuiz();
+}
+
+function startExam() {
+  const all = [...quiz1, ...quiz2, ...quiz3];
+  currentQuiz = shuffle(all).slice(0,20);
+  initQuiz(true);
+}
+
+function initQuiz(exam=false){
+  currentIndex=0; score=0;
+  if(exam){
+    timeLeft=600;
+    startTimer();
+  } else clearInterval(timer);
+  showQuestion();
+}
+
+function startTimer(){
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    timeLeft--;
+    document.getElementById('timer').innerText = `⏱️ Temps restant : ${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
+    if(timeLeft<=0){
+      clearInterval(timer);
+      showResult(true);
+    }
+  },1000);
+}
+
+function showQuestion(){
+  const q=currentQuiz[currentIndex];
+  document.getElementById('app').innerHTML=`
+    <div class="quiz-box">
+      <div id="timer"></div>
+      <h2>Question ${currentIndex+1}/${currentQuiz.length}</h2>
+      <p><strong>${q.q}</strong></p>
+      <div class="choices">
+        ${q.c.map((ch,i)=>`<button onclick="checkAnswer(${i})">${ch}</button>`).join("")}
+      </div>
+    </div>`;
+  if(timer) document.getElementById('timer').innerText = `⏱️ Temps restant : ${Math.floor(timeLeft/60)}:${String(timeLeft%60).padStart(2,'0')}`;
+}
+
+function checkAnswer(i){
+  const q=currentQuiz[currentIndex];
+  const buttons=document.querySelectorAll('.choices button');
+  buttons.forEach((btn,idx)=>{
+    btn.disabled=true;
+    if(idx===q.a) btn.classList.add('correct');
+    if(idx===i && i!==q.a) btn.classList.add('incorrect');
+  });
+  const result=document.createElement('div');
+  result.classList.add('explanation');
+  const ok=i===q.a;
+  if(ok) score++;
+  result.innerHTML=`${ok?"✅ Bonne réponse !":`❌ Mauvaise réponse.<br><strong>Bonne :</strong> ${q.c[q.a]}`}<br>${q.e}<br><br><button onclick="nextQuestion()">Suivant</button>`;
+  document.querySelector('.quiz-box').appendChild(result);
+}
+
+function nextQuestion(){
+  currentIndex++;
+  if(currentIndex<currentQuiz.length) showQuestion();
+  else showResult();
+}
+
+function showResult(timeout=false){
+  clearInterval(timer);
+  const note = Math.round((score/currentQuiz.length)*100);
+  document.getElementById('app').innerHTML=`
+    <div class="menu">
+      <h2>${timeout?"⏰ Temps écoulé !":"🎉 Quiz terminé !"}</h2>
+      <p>Score : ${score}/${currentQuiz.length} (${note}/100)</p>
+      <button onclick="showMenu()">Retour au menu principal</button>
+    </div>`;
+}
+
+function shuffle(arr){return arr.sort(()=>Math.random()-0.5);}
+showMenu();
+</script>
+
+</body>
+</html>
